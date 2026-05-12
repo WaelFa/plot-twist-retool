@@ -39,9 +39,9 @@
     "vitest": "^4.0.17"
   },
   "retoolCustomComponentLibraryConfig": {
-    "name": "custom-component-collection",
-    "label": "Custom Component Collection",
-    "description": "A collection of reusable Retool custom components",
+    "name": "Prism",
+    "label": "prism",
+    "description": "Refracting data into helpful actions",
     "entryPoint": "src/index.tsx",
     "outputPath": "dist"
   }
