@@ -17,6 +17,7 @@ import {
   DEFAULT_STROKE_WIDTH
 } from './constants'
 import { generateId, addElement, updateElement } from './state/scene'
+import { createHistory, pushState, undo, redo, getCurrentScene, HistoryState } from './state/history'
 import { hitTest } from './canvas/hitTest'
 import {
   CursorIcon,
@@ -30,7 +31,9 @@ import {
   TrashIcon,
   StrokeThinIcon,
   StrokeMedIcon,
-  StrokeThickIcon
+  StrokeThickIcon,
+  UndoIcon,
+  RedoIcon
 } from './Icons'
 import styles from './PlotTwist.module.css'
 
@@ -81,13 +84,20 @@ export const PlotTwist: FC = () => {
   const [, setExportDataUrl] = Retool.useStateString({ name: 'exportDataUrl' })
   const saveEvent = Retool.useEventCallback({ name: 'save' })
   const exportImageEvent = Retool.useEventCallback({ name: 'exportImage' })
-  const [scene, setScene] = useState<Scene>({
+  const [history, setHistory] = useState<HistoryState>(createHistory({
     version: 1,
     elements: [],
     viewportX: 0,
     viewportY: 0,
     zoom: 1
-  })
+  }))
+  const [draftScene, setDraftScene] = useState<Scene | null>(null)
+  
+  const scene = draftScene || getCurrentScene(history)
+
+  const updateScene = (updater: (prev: Scene) => Scene) => {
+    setDraftScene((prev) => updater(prev || getCurrentScene(history)))
+  }
 
   // Handle resizing and High-DPI (Retina) display support
   useEffect(() => {
@@ -160,11 +170,24 @@ export const PlotTwist: FC = () => {
         e.target instanceof HTMLTextAreaElement
       )
         return
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          setHistory(redo)
+        } else {
+          setHistory(undo)
+        }
+        e.preventDefault()
+        return
+      }
+
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
-        setScene((prev) => ({
-          ...prev,
-          elements: prev.elements.filter((el) => el.id !== selectedElementId)
-        }))
+        setHistory((prev) => {
+          const current = getCurrentScene(prev)
+          return pushState(prev, {
+            ...current,
+            elements: current.elements.filter((el) => el.id !== selectedElementId)
+          })
+        })
         setSelectedElementId(null)
         setSelectedElement(null)
       }
@@ -224,12 +247,12 @@ export const PlotTwist: FC = () => {
         type: 'pen',
         points: [[x, y, e.pressure]]
       }
-      setScene((prev) => addElement(prev, el))
+      updateScene((prev) => addElement(prev, el))
     } else if (activeTool === 'rectangle' || activeTool === 'ellipse') {
       const el = { ...baseEl, type: activeTool, width: 0, height: 0 } as
         | RectElement
         | EllipseElement
-      setScene((prev) => addElement(prev, el))
+      updateScene((prev) => addElement(prev, el))
     } else if (activeTool === 'line') {
       const el: LineElement = {
         ...baseEl,
@@ -239,7 +262,7 @@ export const PlotTwist: FC = () => {
           [x, y]
         ]
       }
-      setScene((prev) => addElement(prev, el))
+      updateScene((prev) => addElement(prev, el))
     }
   }
 
@@ -255,7 +278,7 @@ export const PlotTwist: FC = () => {
       const dx = x - lastPointer.x
       const dy = y - lastPointer.y
       setLastPointer({ x, y })
-      setScene((prev) => {
+      updateScene((prev) => {
         const el = prev.elements.find((e) => e.id === currentElementId)
         if (!el) return prev
         const updates: Partial<BaseElement & any> = {
@@ -276,7 +299,7 @@ export const PlotTwist: FC = () => {
       return
     }
 
-    setScene((prev) => {
+    updateScene((prev) => {
       const el = prev.elements.find((e) => e.id === currentElementId)
       if (!el) return prev
 
@@ -299,6 +322,10 @@ export const PlotTwist: FC = () => {
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (draftScene) {
+      setHistory(prev => pushState(prev, draftScene))
+      setDraftScene(null)
+    }
     setIsDrawing(false)
     setCurrentElementId(null)
     setLastPointer(null)
@@ -364,7 +391,24 @@ export const PlotTwist: FC = () => {
         <div className={styles.toolbarGroup}>
           <button
             className={styles.actionBtn}
-            onClick={() => setScene((prev) => ({ ...prev, elements: [] }))}
+            onClick={() => setHistory(undo)}
+            data-tooltip="Undo (Cmd+Z)"
+          >
+            <UndoIcon />
+          </button>
+          <button
+            className={styles.actionBtn}
+            onClick={() => setHistory(redo)}
+            data-tooltip="Redo (Cmd+Shift+Z)"
+          >
+            <RedoIcon />
+          </button>
+        </div>
+        <div className={styles.divider} />
+        <div className={styles.toolbarGroup}>
+          <button
+            className={styles.actionBtn}
+            onClick={() => setHistory(prev => pushState(prev, { ...getCurrentScene(prev), elements: [] }))}
             data-tooltip="Clear All"
           >
             <TrashIcon />

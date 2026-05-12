@@ -73,6 +73,10 @@
   color: #a0a0a0;
   font-weight: 500;
   text-transform: uppercase;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   margin-bottom: -4px;
 }
 
@@ -191,9 +195,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background-color: #404040;
-  border: 1px solid #505050;
-  color: white;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: #a0a0a0;
   cursor: pointer;
   padding: 6px 12px;
   border-radius: 6px;
