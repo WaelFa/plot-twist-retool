@@ -4,6 +4,7 @@ import { renderScene } from './canvas/renderer'
 import { Scene, ToolType, BaseElement, PenElement, RectElement, EllipseElement, LineElement } from './types'
 import { DEFAULT_BG_COLOR, DEFAULT_STROKE_COLOR, DEFAULT_FILL_COLOR, DEFAULT_STROKE_WIDTH } from './constants'
 import { generateId, addElement, updateElement } from './state/scene'
+import { hitTest } from './canvas/hitTest'
 import styles from './PlotTwist.module.css'
 
 export const PlotTwist: FC = () => {
@@ -23,6 +24,13 @@ export const PlotTwist: FC = () => {
   const [activeTool, setActiveTool] = useState<ToolType>('pen')
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentElementId, setCurrentElementId] = useState<string | null>(null)
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const [lastPointer, setLastPointer] = useState<{x: number, y: number} | null>(null)
+  
+  const [selectedElement, setSelectedElement] = Retool.useStateObject({
+    name: 'selectedElement'
+  })
+  const elementSelectedEvent = Retool.useEventCallback({ name: 'elementSelected' })
   const [scene, setScene] = useState<Scene>({
     version: 1,
     elements: [],
@@ -54,7 +62,7 @@ export const PlotTwist: FC = () => {
         if (ctx) {
           // Normalize coordinate system to use css pixels
           ctx.scale(dpr, dpr)
-          renderScene(ctx, scene, width, height, backgroundColor || DEFAULT_BG_COLOR)
+          renderScene(ctx, scene, width, height, backgroundColor || DEFAULT_BG_COLOR, true, selectedElementId)
         }
       }
     })
@@ -74,12 +82,28 @@ export const PlotTwist: FC = () => {
     if (ctx) {
       // Dimensions are logically canvas.width / dpr, but we can just read from CSS
       const rect = canvas.getBoundingClientRect()
-      renderScene(ctx, scene, rect.width, rect.height, backgroundColor || DEFAULT_BG_COLOR)
+      renderScene(ctx, scene, rect.width, rect.height, backgroundColor || DEFAULT_BG_COLOR, true, selectedElementId)
     }
-  }, [scene, backgroundColor])
+  }, [scene, backgroundColor, selectedElementId])
+
+  // Delete shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
+        setScene(prev => ({
+          ...prev,
+          elements: prev.elements.filter(el => el.id !== selectedElementId)
+        }))
+        setSelectedElementId(null)
+        setSelectedElement(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedElementId])
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (activeTool === 'select' || activeTool === 'text') return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
     
@@ -88,6 +112,24 @@ export const PlotTwist: FC = () => {
     
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+
+    if (activeTool === 'select') {
+      const hit = hitTest(scene.elements, x, y)
+      if (hit) {
+        setSelectedElementId(hit.id)
+        setSelectedElement(hit)
+        elementSelectedEvent()
+        setIsDrawing(true) // Reuse for dragging
+        setCurrentElementId(hit.id)
+        setLastPointer({ x, y })
+      } else {
+        setSelectedElementId(null)
+        setSelectedElement(null)
+      }
+      return
+    }
+
+    if (activeTool === 'text') return
 
     setIsDrawing(true)
     const id = generateId()
@@ -126,6 +168,28 @@ export const PlotTwist: FC = () => {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
+    if (activeTool === 'select' && currentElementId && lastPointer) {
+      const dx = x - lastPointer.x
+      const dy = y - lastPointer.y
+      setLastPointer({ x, y })
+      setScene(prev => {
+        const el = prev.elements.find(e => e.id === currentElementId)
+        if (!el) return prev
+        const updates: Partial<BaseElement & any> = { x: el.x + dx, y: el.y + dy }
+        
+        if (el.type === 'pen' || el.type === 'line') {
+          updates.points = el.points.map((p: any) => {
+            const newP = [...p]
+            newP[0] += dx
+            newP[1] += dy
+            return newP
+          })
+        }
+        return updateElement(prev, currentElementId, updates)
+      })
+      return
+    }
+
     setScene(prev => {
       const el = prev.elements.find(e => e.id === currentElementId)
       if (!el) return prev
@@ -151,6 +215,7 @@ export const PlotTwist: FC = () => {
   const handlePointerUp = (e: React.PointerEvent) => {
     setIsDrawing(false)
     setCurrentElementId(null)
+    setLastPointer(null)
     e.currentTarget.releasePointerCapture(e.pointerId)
   }
 

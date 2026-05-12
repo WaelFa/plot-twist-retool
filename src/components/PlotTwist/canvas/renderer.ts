@@ -2,6 +2,7 @@ import rough from 'roughjs/bin/rough'
 import { getStroke } from 'perfect-freehand'
 import { Scene } from '../types'
 import { GRID_SIZE } from '../constants'
+import { getBoundingBox } from './geometry'
 
 function getSvgPathFromStroke(stroke: number[][]) {
   if (!stroke.length) return ''
@@ -23,7 +24,8 @@ export function renderScene(
   width: number,
   height: number,
   backgroundColor: string,
-  showGrid: boolean = true
+  showGrid: boolean = true,
+  selectedElementId: string | null = null
 ) {
   // Clear the canvas
   ctx.clearRect(0, 0, width, height)
@@ -98,5 +100,28 @@ export function renderScene(
     }
 
     ctx.restore()
+  }
+
+  // Draw selection highlight
+  if (selectedElementId) {
+    const selectedEl = scene.elements.find(e => e.id === selectedElementId)
+    if (selectedEl) {
+      const { minX, minY, maxX, maxY } = getBoundingBox(selectedEl)
+      ctx.save()
+      ctx.strokeStyle = '#6BBAFF'
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([5, 5])
+      ctx.strokeRect(minX - 5, minY - 5, maxX - minX + 10, maxY - minY + 10)
+      
+      // Draw tiny corner handles
+      ctx.fillStyle = '#6BBAFF'
+      ctx.setLineDash([])
+      const handleSize = 6
+      ctx.fillRect(minX - 5 - handleSize / 2, minY - 5 - handleSize / 2, handleSize, handleSize)
+      ctx.fillRect(maxX + 5 - handleSize / 2, minY - 5 - handleSize / 2, handleSize, handleSize)
+      ctx.fillRect(minX - 5 - handleSize / 2, maxY + 5 - handleSize / 2, handleSize, handleSize)
+      ctx.fillRect(maxX + 5 - handleSize / 2, maxY + 5 - handleSize / 2, handleSize, handleSize)
+      ctx.restore()
+    }
   }
 }
