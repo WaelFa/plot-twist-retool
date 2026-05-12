@@ -13,27 +13,27 @@ export const PlotTwist: FC = () => {
   const [backgroundColor] = Retool.useStateString({
     name: 'backgroundColor',
     label: 'Background Color',
-    initialValue: '#1E1E1E',
+    initialValue: '#1E1E1E'
   })
 
   const [sceneData] = Retool.useStateString({
     name: 'sceneData',
     label: 'Scene Data (JSON)',
-    initialValue: '',
+    initialValue: ''
   })
 
   // Local State
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  
-  // Dummy scene for Phase 1
-  const scene: Scene = {
+
+  // Dummy scene for Phase 1 - Moved outside or useMemo to prevent unnecessary effect re-runs
+  const scene = React.useMemo<Scene>(() => ({
     version: 1,
     elements: [],
     viewportX: 0,
     viewportY: 0,
     zoom: 1
-  }
+  }), [])
 
   // Handle resizing and High-DPI (Retina) display support
   useEffect(() => {
@@ -43,6 +43,7 @@ export const PlotTwist: FC = () => {
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
+        // Use the body size to ensure we fill the available Retool space
         const { width, height } = entry.contentRect
         const dpr = window.devicePixelRatio || 1
 
@@ -58,12 +59,18 @@ export const PlotTwist: FC = () => {
         if (ctx) {
           // Normalize coordinate system to use css pixels
           ctx.scale(dpr, dpr)
-          renderScene(ctx, scene, width, height, backgroundColor || DEFAULT_BG_COLOR)
+          renderScene(
+            ctx,
+            scene,
+            width,
+            height,
+            backgroundColor || DEFAULT_BG_COLOR
+          )
         }
       }
     })
 
-    resizeObserver.observe(container)
+    resizeObserver.observe(document.body)
 
     return () => {
       resizeObserver.disconnect()

@@ -7,6 +7,8 @@
   overflow: hidden;
   border-radius: 8px;
   background-color: #1E1E1E;
+  min-width: 400px;
+  min-height: 400px;
 }
 
 .canvasContainer {
