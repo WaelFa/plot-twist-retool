@@ -26,3 +26,40 @@
   height: 100%;
   touch-action: none; /* Prevent scroll on touch devices while drawing */
 }
+
+.toolbar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background-color: #2D2D2D;
+  border-radius: 8px;
+  border: 1px solid #404040;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  z-index: 10;
+}
+
+.toolBtn {
+  background: transparent;
+  border: none;
+  color: #A0A0A0;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.toolBtn:hover {
+  background-color: #404040;
+  color: white;
+}
+
+.toolBtnActive {
+  background-color: #6BBAFF;
+  color: #1E1E1E;
+}

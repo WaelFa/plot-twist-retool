@@ -1,5 +1,21 @@
+import rough from 'roughjs/bin/rough'
+import { getStroke } from 'perfect-freehand'
 import { Scene } from '../types'
 import { GRID_SIZE } from '../constants'
+
+function getSvgPathFromStroke(stroke: number[][]) {
+  if (!stroke.length) return ''
+  const d = stroke.reduce(
+    (acc, [x0, y0], i, arr) => {
+      const [x1, y1] = arr[(i + 1) % arr.length]
+      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2)
+      return acc
+    },
+    ['M', ...stroke[0], 'Q']
+  )
+  d.push('Z')
+  return d.join(' ')
+}
 
 export function renderScene(
   ctx: CanvasRenderingContext2D,
@@ -22,13 +38,11 @@ export function renderScene(
     ctx.lineWidth = 1
     ctx.beginPath()
 
-    // Vertical lines
     for (let x = 0; x <= width; x += GRID_SIZE) {
       ctx.moveTo(x, 0)
       ctx.lineTo(x, height)
     }
 
-    // Horizontal lines
     for (let y = 0; y <= height; y += GRID_SIZE) {
       ctx.moveTo(0, y)
       ctx.lineTo(width, y)
@@ -37,10 +51,52 @@ export function renderScene(
     ctx.stroke()
   }
 
-  // Draw elements (stub for now)
-  if (scene.elements && scene.elements.length > 0) {
-    ctx.fillStyle = 'white'
-    ctx.font = '14px Inter, sans-serif'
-    ctx.fillText(`Scene has ${scene.elements.length} elements`, 20, 30)
+  // Draw elements
+  const rc = rough.canvas(ctx.canvas)
+
+  for (const element of scene.elements) {
+    ctx.save()
+    ctx.globalAlpha = element.opacity ?? 1
+
+    const roughOptions: any = {
+      stroke: element.strokeColor,
+      strokeWidth: element.strokeWidth,
+      fill: element.fillColor !== 'transparent' ? element.fillColor : undefined,
+      fillStyle: 'hachure'
+    }
+
+    if (element.type === 'pen') {
+      const strokePoints = getStroke(element.points as any, {
+        size: element.strokeWidth * 3,
+        thinning: 0.5,
+        smoothing: 0.5,
+        streamline: 0.5,
+      })
+      const pathData = getSvgPathFromStroke(strokePoints as number[][])
+      const path = new Path2D(pathData)
+      ctx.fillStyle = element.strokeColor
+      ctx.fill(path)
+    } else if (element.type === 'rectangle') {
+      rc.rectangle(element.x, element.y, element.width, element.height, roughOptions)
+    } else if (element.type === 'ellipse') {
+      rc.ellipse(
+        element.x + element.width / 2,
+        element.y + element.height / 2,
+        element.width,
+        element.height,
+        roughOptions
+      )
+    } else if (element.type === 'line') {
+      const [start, end] = element.points
+      if (start && end) {
+        rc.line(start[0], start[1], end[0], end[1], roughOptions)
+      }
+    } else if (element.type === 'text') {
+      ctx.fillStyle = element.strokeColor
+      ctx.font = `${element.fontSize}px ${element.fontFamily || 'Inter, sans-serif'}`
+      ctx.fillText(element.text, element.x, element.y + element.fontSize)
+    }
+
+    ctx.restore()
   }
 }
