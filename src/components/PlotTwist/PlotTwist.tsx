@@ -1,11 +1,48 @@
 import React, { FC, useEffect, useRef, useState } from 'react'
 import { Retool } from '@tryretool/custom-component-support'
 import { renderScene } from './canvas/renderer'
-import { Scene, ToolType, BaseElement, PenElement, RectElement, EllipseElement, LineElement } from './types'
-import { DEFAULT_BG_COLOR, DEFAULT_STROKE_COLOR, DEFAULT_FILL_COLOR, DEFAULT_STROKE_WIDTH } from './constants'
+import {
+  Scene,
+  ToolType,
+  BaseElement,
+  PenElement,
+  RectElement,
+  EllipseElement,
+  LineElement
+} from './types'
+import {
+  DEFAULT_BG_COLOR,
+  DEFAULT_STROKE_COLOR,
+  DEFAULT_FILL_COLOR,
+  DEFAULT_STROKE_WIDTH
+} from './constants'
 import { generateId, addElement, updateElement } from './state/scene'
 import { hitTest } from './canvas/hitTest'
+import {
+  CursorIcon,
+  PenIcon,
+  RectIcon,
+  EllipseIcon,
+  LineIcon,
+  TextIcon,
+  SaveIcon,
+  ExportIcon,
+  TrashIcon,
+  StrokeThinIcon,
+  StrokeMedIcon,
+  StrokeThickIcon
+} from './Icons'
 import styles from './PlotTwist.module.css'
+
+const COLORS = [
+  '#E03131',
+  '#2F9E44',
+  '#1971C2',
+  '#F08C00',
+  '#6741D9',
+  '#1E1E1E',
+  'transparent'
+]
 
 export const PlotTwist: FC = () => {
   // Set default dimensions for Retool
@@ -22,15 +59,28 @@ export const PlotTwist: FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeTool, setActiveTool] = useState<ToolType>('pen')
+  const [strokeColor, setStrokeColor] = useState('#E03131')
+  const [fillColor, setFillColor] = useState('transparent')
+  const [strokeWidth, setStrokeWidth] = useState(2)
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentElementId, setCurrentElementId] = useState<string | null>(null)
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
-  const [lastPointer, setLastPointer] = useState<{x: number, y: number} | null>(null)
-  
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(
+    null
+  )
+  const [lastPointer, setLastPointer] = useState<{
+    x: number
+    y: number
+  } | null>(null)
+
   const [selectedElement, setSelectedElement] = Retool.useStateObject({
     name: 'selectedElement'
   })
-  const elementSelectedEvent = Retool.useEventCallback({ name: 'elementSelected' })
+  const elementSelectedEvent = Retool.useEventCallback({
+    name: 'elementSelected'
+  })
+  const [, setExportDataUrl] = Retool.useStateString({ name: 'exportDataUrl' })
+  const saveEvent = Retool.useEventCallback({ name: 'save' })
+  const exportImageEvent = Retool.useEventCallback({ name: 'exportImage' })
   const [scene, setScene] = useState<Scene>({
     version: 1,
     elements: [],
@@ -62,7 +112,15 @@ export const PlotTwist: FC = () => {
         if (ctx) {
           // Normalize coordinate system to use css pixels
           ctx.scale(dpr, dpr)
-          renderScene(ctx, scene, width, height, backgroundColor || DEFAULT_BG_COLOR, true, selectedElementId)
+          renderScene(
+            ctx,
+            scene,
+            width,
+            height,
+            backgroundColor || DEFAULT_BG_COLOR,
+            true,
+            selectedElementId
+          )
         }
       }
     })
@@ -82,18 +140,30 @@ export const PlotTwist: FC = () => {
     if (ctx) {
       // Dimensions are logically canvas.width / dpr, but we can just read from CSS
       const rect = canvas.getBoundingClientRect()
-      renderScene(ctx, scene, rect.width, rect.height, backgroundColor || DEFAULT_BG_COLOR, true, selectedElementId)
+      renderScene(
+        ctx,
+        scene,
+        rect.width,
+        rect.height,
+        backgroundColor || DEFAULT_BG_COLOR,
+        true,
+        selectedElementId
+      )
     }
   }, [scene, backgroundColor, selectedElementId])
 
   // Delete shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
-        setScene(prev => ({
+        setScene((prev) => ({
           ...prev,
-          elements: prev.elements.filter(el => el.id !== selectedElementId)
+          elements: prev.elements.filter((el) => el.id !== selectedElementId)
         }))
         setSelectedElementId(null)
         setSelectedElement(null)
@@ -106,10 +176,10 @@ export const PlotTwist: FC = () => {
   const handlePointerDown = (e: React.PointerEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
-    
+
     // Always capture pointer so we track outside canvas
     e.currentTarget.setPointerCapture(e.pointerId)
-    
+
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
@@ -140,23 +210,36 @@ export const PlotTwist: FC = () => {
       type: activeTool,
       x,
       y,
-      strokeColor: DEFAULT_STROKE_COLOR,
-      fillColor: DEFAULT_FILL_COLOR,
-      strokeWidth: DEFAULT_STROKE_WIDTH,
+      strokeColor,
+      fillColor,
+      strokeWidth,
       opacity: 1,
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
 
     if (activeTool === 'pen') {
-      const el: PenElement = { ...baseEl, type: 'pen', points: [[x, y, e.pressure]] }
-      setScene(prev => addElement(prev, el))
+      const el: PenElement = {
+        ...baseEl,
+        type: 'pen',
+        points: [[x, y, e.pressure]]
+      }
+      setScene((prev) => addElement(prev, el))
     } else if (activeTool === 'rectangle' || activeTool === 'ellipse') {
-      const el = { ...baseEl, type: activeTool, width: 0, height: 0 } as RectElement | EllipseElement
-      setScene(prev => addElement(prev, el))
+      const el = { ...baseEl, type: activeTool, width: 0, height: 0 } as
+        | RectElement
+        | EllipseElement
+      setScene((prev) => addElement(prev, el))
     } else if (activeTool === 'line') {
-      const el: LineElement = { ...baseEl, type: 'line', points: [[x, y], [x, y]] }
-      setScene(prev => addElement(prev, el))
+      const el: LineElement = {
+        ...baseEl,
+        type: 'line',
+        points: [
+          [x, y],
+          [x, y]
+        ]
+      }
+      setScene((prev) => addElement(prev, el))
     }
   }
 
@@ -164,7 +247,7 @@ export const PlotTwist: FC = () => {
     if (!isDrawing || !currentElementId) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
-    
+
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
@@ -172,11 +255,14 @@ export const PlotTwist: FC = () => {
       const dx = x - lastPointer.x
       const dy = y - lastPointer.y
       setLastPointer({ x, y })
-      setScene(prev => {
-        const el = prev.elements.find(e => e.id === currentElementId)
+      setScene((prev) => {
+        const el = prev.elements.find((e) => e.id === currentElementId)
         if (!el) return prev
-        const updates: Partial<BaseElement & any> = { x: el.x + dx, y: el.y + dy }
-        
+        const updates: Partial<BaseElement & any> = {
+          x: el.x + dx,
+          y: el.y + dy
+        }
+
         if (el.type === 'pen' || el.type === 'line') {
           updates.points = el.points.map((p: any) => {
             const newP = [...p]
@@ -190,8 +276,8 @@ export const PlotTwist: FC = () => {
       return
     }
 
-    setScene(prev => {
-      const el = prev.elements.find(e => e.id === currentElementId)
+    setScene((prev) => {
+      const el = prev.elements.find((e) => e.id === currentElementId)
       if (!el) return prev
 
       if (el.type === 'pen') {
@@ -219,22 +305,162 @@ export const PlotTwist: FC = () => {
     e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
+  const handleExport = () => {
+    if (canvasRef.current) {
+      const dataUrl = canvasRef.current.toDataURL('image/png')
+      setExportDataUrl(dataUrl)
+      exportImageEvent()
+    }
+  }
+
   return (
     <div className={styles.root}>
-      <div className={styles.toolbar}>
-        {(['select', 'pen', 'rectangle', 'ellipse', 'line'] as ToolType[]).map(tool => (
-          <button 
-            key={tool} 
-            className={`${styles.toolBtn} ${activeTool === tool ? styles.toolBtnActive : ''}`}
-            onClick={() => setActiveTool(tool)}
+      <div className={styles.topToolbar}>
+        <div className={styles.toolbarGroup}>
+          <button
+            className={`${styles.toolBtn} ${activeTool === 'select' ? styles.toolBtnActive : ''}`}
+            onClick={() => setActiveTool('select')}
+            data-tooltip="Select (V)"
           >
-            {tool.charAt(0).toUpperCase() + tool.slice(1)}
+            <CursorIcon />
           </button>
-        ))}
+          <button
+            className={`${styles.toolBtn} ${activeTool === 'pen' ? styles.toolBtnActive : ''}`}
+            onClick={() => setActiveTool('pen')}
+            data-tooltip="Pen (P)"
+          >
+            <PenIcon />
+          </button>
+          <button
+            className={`${styles.toolBtn} ${activeTool === 'rectangle' ? styles.toolBtnActive : ''}`}
+            onClick={() => setActiveTool('rectangle')}
+            data-tooltip="Rectangle (R)"
+          >
+            <RectIcon />
+          </button>
+          <button
+            className={`${styles.toolBtn} ${activeTool === 'ellipse' ? styles.toolBtnActive : ''}`}
+            onClick={() => setActiveTool('ellipse')}
+            data-tooltip="Ellipse (E)"
+          >
+            <EllipseIcon />
+          </button>
+          <button
+            className={`${styles.toolBtn} ${activeTool === 'line' ? styles.toolBtnActive : ''}`}
+            onClick={() => setActiveTool('line')}
+            data-tooltip="Line (L)"
+          >
+            <LineIcon />
+          </button>
+          <button
+            className={`${styles.toolBtn} ${activeTool === 'text' ? styles.toolBtnActive : ''}`}
+            onClick={() => setActiveTool('text')}
+            data-tooltip="Text (T)"
+          >
+            <TextIcon />
+          </button>
+        </div>
+        <div className={styles.divider} />
+        <div className={styles.toolbarGroup}>
+          <button
+            className={styles.actionBtn}
+            onClick={() => setScene((prev) => ({ ...prev, elements: [] }))}
+            data-tooltip="Clear All"
+          >
+            <TrashIcon />
+          </button>
+          <button
+            className={`${styles.actionBtn} ${styles.primaryAction}`}
+            onClick={saveEvent}
+            data-tooltip="Save to Database"
+          >
+            <SaveIcon />
+          </button>
+          <button
+            className={styles.actionBtn}
+            onClick={handleExport}
+            data-tooltip="Export PNG"
+          >
+            <ExportIcon />
+          </button>
+        </div>
+      </div>
+
+      <div className={styles.leftToolbar}>
+        <div className={styles.verticalGroup}>
+          <div className={styles.colorLabels}>
+            <span>Stroke</span>
+            <span>Fill</span>
+          </div>
+          <div className={styles.colorGrid}>
+            <div className={styles.colorCol}>
+              {COLORS.map((c) => (
+                <button
+                  key={`stroke-${c}`}
+                  className={`${styles.colorBtn} ${strokeColor === c ? styles.colorBtnActive : ''}`}
+                  style={{
+                    backgroundColor: c === 'transparent' ? 'transparent' : c,
+                    border:
+                      c === 'transparent'
+                        ? strokeColor === c
+                          ? '2px solid white'
+                          : '2px dashed #a0a0a0'
+                        : undefined
+                  }}
+                  onClick={() => setStrokeColor(c)}
+                  data-tooltip="Stroke Color"
+                />
+              ))}
+            </div>
+            <div className={styles.colorCol}>
+              {COLORS.map((c) => (
+                <button
+                  key={`fill-${c}`}
+                  className={`${styles.colorBtn} ${fillColor === c ? styles.colorBtnActive : ''}`}
+                  style={{
+                    backgroundColor: c === 'transparent' ? 'transparent' : c,
+                    border:
+                      c === 'transparent'
+                        ? fillColor === c
+                          ? '2px solid white'
+                          : '2px dashed #a0a0a0'
+                        : undefined
+                  }}
+                  onClick={() => setFillColor(c)}
+                  data-tooltip="Fill Color"
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className={styles.horizontalDivider} />
+        <div className={styles.verticalGroup}>
+          <button
+            className={`${styles.toolBtn} ${strokeWidth === 2 ? styles.toolBtnActive : ''}`}
+            onClick={() => setStrokeWidth(2)}
+            data-tooltip="Thin"
+          >
+            <StrokeThinIcon />
+          </button>
+          <button
+            className={`${styles.toolBtn} ${strokeWidth === 4 ? styles.toolBtnActive : ''}`}
+            onClick={() => setStrokeWidth(4)}
+            data-tooltip="Medium"
+          >
+            <StrokeMedIcon />
+          </button>
+          <button
+            className={`${styles.toolBtn} ${strokeWidth === 8 ? styles.toolBtnActive : ''}`}
+            onClick={() => setStrokeWidth(8)}
+            data-tooltip="Thick"
+          >
+            <StrokeThickIcon />
+          </button>
+        </div>
       </div>
       <div className={styles.canvasContainer} ref={containerRef}>
-        <canvas 
-          className={styles.canvas} 
+        <canvas
+          className={styles.canvas}
           ref={canvasRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

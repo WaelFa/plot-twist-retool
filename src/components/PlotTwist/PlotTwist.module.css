@@ -6,7 +6,7 @@
   position: relative;
   overflow: hidden;
   border-radius: 8px;
-  background-color: #1E1E1E;
+  background-color: #1e1e1e;
   min-width: 400px;
   min-height: 400px;
 }
@@ -27,7 +27,7 @@
   touch-action: none; /* Prevent scroll on touch devices while drawing */
 }
 
-.toolbar {
+.topToolbar {
   position: absolute;
   top: 16px;
   left: 50%;
@@ -35,22 +35,127 @@
   display: flex;
   gap: 8px;
   padding: 8px;
-  background-color: #2D2D2D;
+  background-color: #2d2d2d;
   border-radius: 8px;
   border: 1px solid #404040;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
   z-index: 10;
 }
 
+.leftToolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background-color: #2d2d2d;
+  border-radius: 8px;
+  border: 1px solid #404040;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  width: max-content;
+}
+
+.verticalGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.colorLabels {
+  display: flex;
+  width: 100%;
+  justify-content: space-around;
+  font-size: 8px;
+  color: #a0a0a0;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-bottom: -4px;
+}
+
+.colorGrid {
+  display: flex;
+  gap: 12px;
+}
+
+.colorCol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.horizontalDivider {
+  height: 1px;
+  width: 100%;
+  background-color: #404040;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  color: #a0a0a0;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.leftToolbar [data-tooltip]:hover::after {
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  margin-top: 0;
+  margin-left: 8px;
+}
+
+.toolbarGroup {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.divider {
+  width: 1px;
+  background-color: #404040;
+  margin: 0 4px;
+  height: 24px;
+  align-self: center;
+}
+
 .toolBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
-  color: #A0A0A0;
+  color: #a0a0a0;
   cursor: pointer;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: 8px;
+  border-radius: 6px;
   transition: all 0.2s;
 }
 
@@ -60,6 +165,53 @@
 }
 
 .toolBtnActive {
-  background-color: #6BBAFF;
-  color: #1E1E1E;
+  background-color: #404040;
+  color: #6bbaff;
+}
+
+.colorBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s;
+}
+
+.colorBtn:hover {
+  transform: scale(1.1);
+}
+
+.colorBtnActive {
+  border-color: #ffffff;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #404040;
+  border: 1px solid #505050;
+  color: white;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background-color: #505050;
+}
+
+.primaryAction {
+  background-color: #6bbaff;
+  border-color: #6bbaff;
+  color: #1e1e1e;
+}
+
+.primaryAction:hover {
+  background-color: #5aa9ee;
 }
