@@ -95,7 +95,7 @@ export function renderScene(
       }
     } else if (element.type === 'text') {
       ctx.fillStyle = element.strokeColor
-      ctx.font = `${element.fontSize}px ${element.fontFamily || 'Inter, sans-serif'}`
+      ctx.font = `${element.fontSize}px ${element.fontFamily || "'Caveat', cursive"}`
       ctx.fillText(element.text, element.x, element.y + element.fontSize)
     }
 

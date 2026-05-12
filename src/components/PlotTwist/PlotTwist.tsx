@@ -8,7 +8,8 @@ import {
   PenElement,
   RectElement,
   EllipseElement,
-  LineElement
+  LineElement,
+  TextElement
 } from './types'
 import {
   DEFAULT_BG_COLOR,
@@ -93,6 +94,50 @@ export const PlotTwist: FC = () => {
   }))
   const [draftScene, setDraftScene] = useState<Scene | null>(null)
   
+  const [textInputState, setTextInputState] = useState<{ x: number, y: number, value: string, id: string } | null>(null)
+  const textInputRef = useRef<{ x: number, y: number, value: string, id: string } | null>(null)
+  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (textInputState && textAreaRef.current) {
+      // Focus asynchronously to avoid the native mousedown event blurring the newly created textarea
+      setTimeout(() => {
+        textAreaRef.current?.focus()
+      }, 10)
+    }
+  }, [textInputState?.id])
+
+  const setTextInput = (val: { x: number, y: number, value: string, id: string } | null) => {
+    textInputRef.current = val
+    setTextInputState(val)
+  }
+
+  const commitTextElement = (targetId: string) => {
+    const current = textInputRef.current
+    if (current && current.id === targetId) {
+      if (current.value.trim()) {
+        const fontSize = strokeWidth <= 2 ? 16 : strokeWidth <= 4 ? 24 : 36
+        const el: TextElement = {
+          id: current.id,
+          type: 'text',
+          x: current.x,
+          y: current.y,
+          text: current.value,
+          fontSize,
+          fontFamily: "'Caveat', cursive",
+          strokeColor,
+          fillColor,
+          strokeWidth,
+          opacity: 1,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+        setHistory((prev) => pushState(prev, addElement(getCurrentScene(prev), el)))
+      }
+      setTextInput(null)
+    }
+  }
+
   const scene = draftScene || getCurrentScene(history)
 
   const updateScene = (updater: (prev: Scene) => Scene) => {
@@ -222,7 +267,13 @@ export const PlotTwist: FC = () => {
       return
     }
 
-    if (activeTool === 'text') return
+    if (activeTool === 'text') {
+      if (textInputRef.current) {
+        commitTextElement(textInputRef.current.id)
+      }
+      setTextInput({ x, y, value: '', id: generateId() })
+      return
+    }
 
     setIsDrawing(true)
     const id = generateId()
@@ -510,6 +561,48 @@ export const PlotTwist: FC = () => {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
         />
+        {textInputState && (
+          <textarea
+            ref={textAreaRef}
+            style={{
+              position: 'absolute',
+              left: textInputState.x,
+              top: textInputState.y,
+              fontSize: `${strokeWidth <= 2 ? 16 : strokeWidth <= 4 ? 24 : 36}px`,
+              fontFamily: "'Caveat', cursive",
+              color: strokeColor,
+              background: 'transparent',
+              border: '1px dashed #6bbaff',
+              outline: 'none',
+              minWidth: '100px',
+              minHeight: '30px',
+              resize: 'none',
+              overflow: 'hidden',
+              whiteSpace: 'pre',
+              padding: 0,
+              margin: 0,
+              lineHeight: 1
+            }}
+            value={textInputState.value}
+            onChange={(e) => {
+              setTextInput({ ...textInputState, value: e.target.value })
+              e.target.style.height = 'auto'
+              e.target.style.height = e.target.scrollHeight + 'px'
+              e.target.style.width = 'auto'
+              e.target.style.width = Math.max(100, e.target.scrollWidth) + 'px'
+            }}
+            onBlur={() => commitTextElement(textInputState.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                commitTextElement(textInputState.id)
+              }
+              if (e.key === 'Escape') {
+                setTextInput(null)
+              }
+            }}
+          />
+        )}
       </div>
     </div>
   )
