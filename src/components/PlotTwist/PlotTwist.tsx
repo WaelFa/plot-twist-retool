@@ -85,6 +85,9 @@ export const PlotTwist: FC = () => {
   const [, setExportDataUrl] = Retool.useStateString({ name: 'exportDataUrl' })
   const saveEvent = Retool.useEventCallback({ name: 'save' })
   const exportImageEvent = Retool.useEventCallback({ name: 'exportImage' })
+  const [sceneData, setSceneData] = Retool.useStateObject({ name: 'sceneData' })
+  const [initialLoadDone, setInitialLoadDone] = useState(false)
+
   const [history, setHistory] = useState<HistoryState>(createHistory({
     version: 1,
     elements: [],
@@ -92,6 +95,55 @@ export const PlotTwist: FC = () => {
     viewportY: 0,
     zoom: 1
   }))
+
+  // Load data from Retool (handles initial load AND switching sessions)
+  useEffect(() => {
+    console.log('PlotTwist [IN] - Received sceneData from Retool:', sceneData)
+    
+    let incomingScene: any = null
+
+    if (sceneData && typeof sceneData === 'object' && Array.isArray((sceneData as any).elements)) {
+      incomingScene = sceneData
+    } else if (
+      !sceneData || 
+      (typeof sceneData === 'object' && Object.keys(sceneData).length === 0) ||
+      (typeof sceneData === 'string' && sceneData.trim() === '')
+    ) {
+      // It's an empty row in the database! We should clear the board.
+      incomingScene = {
+        version: 1,
+        elements: [],
+        viewportX: 0,
+        viewportY: 0,
+        zoom: 1
+      }
+    }
+
+    if (incomingScene) {
+      const current = getCurrentScene(history)
+      // To prevent infinite loops (since we also write TO sceneData), 
+      // we only load if the incoming data is actually different from our current canvas
+      if (JSON.stringify(incomingScene) !== JSON.stringify(current)) {
+        console.log('PlotTwist [IN] - Bootstrapping canvas with data. Elements:', incomingScene.elements.length)
+        setHistory(createHistory(incomingScene))
+      }
+    } else {
+      console.log('PlotTwist [IN] - Data is an unknown format. Keeping current canvas state.')
+    }
+
+    if (!initialLoadDone) {
+      setInitialLoadDone(true)
+    }
+  }, [sceneData, history, initialLoadDone])
+
+  // Sync internal history state back out to Retool whenever an action completes
+  useEffect(() => {
+    if (initialLoadDone) {
+      const current = getCurrentScene(history)
+      console.log('PlotTwist [OUT] - Syncing latest canvas state to Retool:', current)
+      setSceneData(current)
+    }
+  }, [history, initialLoadDone, setSceneData])
   const [draftScene, setDraftScene] = useState<Scene | null>(null)
   
   const [textInputState, setTextInputState] = useState<{ x: number, y: number, value: string, id: string } | null>(null)
