@@ -120,10 +120,15 @@ export const PlotTwist: FC = () => {
     }
 
     if (incomingScene) {
+      const incomingString = JSON.stringify(incomingScene)
+      
+      // If we recently sent this exact state to Retool, it's just a delayed echo. Ignore it.
+      if (sentStatesRef.current.has(incomingString)) {
+        return
+      }
+
       const current = getCurrentScene(history)
-      // To prevent infinite loops (since we also write TO sceneData), 
-      // we only load if the incoming data is actually different from our current canvas
-      if (JSON.stringify(incomingScene) !== JSON.stringify(current)) {
+      if (incomingString !== JSON.stringify(current)) {
         console.log('PlotTwist [IN] - Bootstrapping canvas with data. Elements:', incomingScene.elements.length)
         setHistory(createHistory(incomingScene))
       }
@@ -140,6 +145,17 @@ export const PlotTwist: FC = () => {
   useEffect(() => {
     if (initialLoadDone) {
       const current = getCurrentScene(history)
+      const stringified = JSON.stringify(current)
+      
+      // Record that we sent this exact state
+      sentStatesRef.current.add(stringified)
+      
+      // To prevent memory leaks over long sessions, limit the set size
+      if (sentStatesRef.current.size > 50) {
+        const iter = sentStatesRef.current.values()
+        sentStatesRef.current.delete(iter.next().value)
+      }
+
       console.log('PlotTwist [OUT] - Syncing latest canvas state to Retool:', current)
       setSceneData(current)
     }
@@ -149,6 +165,9 @@ export const PlotTwist: FC = () => {
   const [textInputState, setTextInputState] = useState<{ x: number, y: number, value: string, id: string } | null>(null)
   const textInputRef = useRef<{ x: number, y: number, value: string, id: string } | null>(null)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  
+  // Track states we've sent out to prevent delayed echoes from overwriting our canvas
+  const sentStatesRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (textInputState && textAreaRef.current) {
@@ -274,6 +293,28 @@ export const PlotTwist: FC = () => {
           setHistory(undo)
         }
         e.preventDefault()
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        saveEvent()
+        e.preventDefault()
+        return
+      }
+
+      // Tool shortcuts
+      const keyToolMap: Record<string, ToolType> = {
+        v: 'select',
+        p: 'pen',
+        r: 'rectangle',
+        e: 'ellipse',
+        l: 'line',
+        t: 'text'
+      }
+      
+      const tool = keyToolMap[e.key.toLowerCase()]
+      if (tool && !e.metaKey && !e.ctrlKey) {
+        setActiveTool(tool)
         return
       }
 
@@ -606,6 +647,11 @@ export const PlotTwist: FC = () => {
         </div>
       </div>
       <div className={styles.canvasContainer} ref={containerRef}>
+        {scene.elements.length === 0 && !textInputState && (
+          <div className={styles.emptyState}>
+            Select a session or start drawing
+          </div>
+        )}
         <canvas
           className={styles.canvas}
           ref={canvasRef}

@@ -1,182 +1,103 @@
-# Retool Custom Component Library Template
+# Plot Twist
 
-Use this as the starting point for building your own custom component library for Retool.
+Plot Twist is a collaborative, open-ended whiteboard custom component for Retool. It allows users to sketch diagrams, wireframes, and ideas with a beautiful hand-drawn aesthetic directly inside your internal Retool apps.
 
----
+![Plot Twist](https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Blank_square.svg/200px-Blank_square.svg.png) <!-- TODO: Update with actual screenshot -->
 
-## What is a Custom Component Library?
+## Features
 
-Retool allows you to extend its built-in components by creating your own using React and TypeScript. A custom component library:
+- **Infinite Canvas & Responsive Layout:** Scales seamlessly to any component size in Retool.
+- **Hand-Drawn Aesthetic:** Powered by `rough.js` for that organic, sketchy look.
+- **Rich Toolset:** Select, Pen, Rectangle, Ellipse, Line, and Text tools.
+- **Undo / Redo Stack:** Make mistakes freely. (Shortcuts: `Ctrl+Z` / `Ctrl+Shift+Z`)
+- **Keyboard Shortcuts:** Rapidly switch tools with single keystrokes (`V`, `P`, `R`, `E`, `L`, `T`).
+- **Database Integration:** Built to connect bidirectionally with PostgreSQL databases out-of-the-box.
+- **PNG Export:** Save your masterpieces directly from the toolbar.
 
-- Is developed locally and deployed into Retool using the Retool CLI
-- Appears in Retool like any native component
-- Can contain multiple reusable components
-- Supports nearly any npm package compatible with browsers
+## Installation
 
-This repo provides the project structure, tooling, and example components to help you get started.
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js v20 or later
-- Admin permissions in Retool
-- A Retool API access token with read and write scopes for Custom Component Libraries
-
-> If you are running self-hosted Retool, setting the `ALLOW_SAME_ORIGIN` and `SANDBOX_DOMAIN` environment variables is recommended.
-
----
-
-### Step 1 — Clone this repository
+Because this is a Retool Custom Component, you deploy it using the `retool-ccl` CLI:
 
 ```bash
-git clone https://github.com/tryretool/custom-component-collection-template your-component-name
-cd your-component-name
-```
+# Clone or download this project
+git clone ...
 
-Or click **Use this template** at the top of this page to create your own copy.
-
----
-
-### Step 2 — Install dependencies
-
-```bash
+# Install dependencies
 npm install
-```
 
----
-
-### Step 3 — Log in to Retool
-
-```bash
+# Authenticate with your Retool instance
 npx retool-ccl login
+
+# Build and deploy
+npx retool-ccl deploy
 ```
 
-You will be prompted for your Retool instance URL and an API token. Generate a token in Retool under **Settings > API tokens** with read and write access for Custom Component Libraries.
+## Component API & Usage
 
----
+Once deployed, drag the "Plot Twist" component into your Retool app. It exposes the following properties and events to allow full two-way synchronization.
 
-### Step 4 — Initialize your library
+### Model Properties
 
-```bash
-npx retool-ccl init
+| Property | Type | Description |
+|----------|------|-------------|
+| `sceneData` | JSON | The real-time serialized JSON object of the entire whiteboard scene. |
+| `backgroundColor` | String | Sets the background hex color. Default: `#1E1E1E` (Dark theme) |
+| `exportDataUrl` | String | Contains the base64 PNG data URL when the user clicks Export. |
+| `selectedElement` | Object | The currently selected shape object on the canvas. |
+
+### Events
+
+| Event Name | Trigger | Use Case |
+|------------|---------|----------|
+| `save` | User clicks the floppy disk icon or `Ctrl+S`. | Trigger a SQL UPDATE query to save `sceneData`. |
+| `exportImage` | User clicks the download icon. | Trigger a download utility using `exportDataUrl`. |
+| `elementSelected`| User clicks an element on canvas. | Show contextual properties in your Retool app sidebar. |
+
+## Quick Start Database Integration
+
+Plot Twist is designed to be fully persistent. Here is a quick guide to wiring it up.
+
+### 1. The Database Table (PostgreSQL)
+Create a table to store your whiteboard sessions:
+```sql
+CREATE TABLE whiteboard_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  scene_data JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
-This prompts for a library name and description, writes metadata to `package.json`, and registers your library with your Retool instance.
-
----
-
-### Step 5 — Build your component
-
-Rename the `HelloWorld` component in `src/components/` or create a new folder for your component:
-
+### 2. Loading Data
+Create a query `loadSession` and bind it to a table component:
+```sql
+SELECT scene_data FROM whiteboard_sessions WHERE id = {{ sessionsTable.selectedRow.id }}
 ```
-src/
-  components/
-    YourComponent/
-      YourComponent.tsx
-      YourComponent.test.tsx
-      README.md
-  index.tsx
+**In the Inspector:** Set Plot Twist's `sceneData` model to `{{ loadSession.data.scene_data[0] }}`. 
+*Plot Twist will automatically parse the JSON and render the canvas!*
+
+### 3. Saving Data
+Create a query `saveSession`:
+```sql
+UPDATE whiteboard_sessions 
+SET scene_data = {{ JSON.stringify(plotTwist1.sceneData) }}, updated_at = NOW() 
+WHERE id = {{ sessionsTable.selectedRow.id }}
 ```
+**In the Inspector:** Go to Event Handlers, listen for `save`, and trigger the `saveSession` query.
 
-All components exported from `src/index.tsx` are synced to Retool.
+## Architecture & Codebase
 
----
+This component is built from scratch using HTML5 Canvas to ensure a minimal bundle size and maximum performance within Retool's iframe constraints.
 
-### Step 6 — Start dev mode
-
-```bash
-npx retool-ccl dev
-```
-
-This syncs your changes to Retool every time you save a file. Open any Retool app to test your component in real time.
-
----
-
-### Step 7 — Add your component to a Retool app
-
-1. Open your Retool app
-2. Click **Add components**
-3. Find your components under your library's label
-4. Drag onto the canvas
-
-> You may need to refresh Retool for newly added components to appear.
-
----
-
-## Development Guidelines
-
-- One component per folder inside `src/components/`
-- Always export from `src/index.tsx`
-- Prefer explicit props over implicit state
-- Avoid hardcoded styles — use CSS modules or props-driven styling
-- Include tests for each component
-- Document usage in a `README.md` inside each component folder
-
----
+- `PlotTwist.tsx`: The main orchestration component and Retool data bridge.
+- `canvas/renderer.ts`: The rendering engine utilizing Canvas 2D API and `roughjs`.
+- `state/history.ts`: Pure functional time-travel state manager (Undo/Redo stack).
+- `state/scene.ts`: Pure functions for mutating shapes safely without mutating React state.
 
 ## Testing
+
+Pure functions (history and scene logic) are tested via Vitest:
 
 ```bash
 npm test
 ```
-
----
-
-## Deploying to Production
-
-When your component is ready:
-
-```bash
-npx retool-ccl deploy
-```
-
-This pushes an immutable version of your library to Retool. To use your library in public Retool apps, go to **Settings > Custom Component Libraries** and enable public access.
-
-### Switching versions
-
-To pin an app to a specific deployed version:
-
-1. Open **Custom Component settings** in your app
-2. Select the version you want
-3. Refresh if necessary
-
----
-
-## Limitations
-
-- Custom component libraries are not supported in Retool Mobile or PDF exports
-- Library descriptions cannot be edited after creation
-- Individual revisions cannot exceed 10MB (30MB in dev mode)
-- Only JavaScript and CSS files are loaded at runtime — other file types in the bundle are ignored
-- Organizations have a 5GB total storage limit across all libraries
-
----
-
-## Submitting to the Community Gallery
-
-Built something useful? Share it with the Retool community by submitting it to the [Custom Component Gallery](https://customcomponents.retool.com/).
-
-**The process has two steps — both are required:**
-
-### 1. Open a pull request to the gallery repository
-
-Add your component to the [custom-component-gallery](https://github.com/tryretool/custom-component-gallery) repository. See [CONTRIBUTING.md](https://github.com/tryretool/custom-component-gallery/blob/main/CONTRIBUTING.md) for the required folder structure and file format.
-
-### 2. Submit the gallery form
-
-Go to [customcomponents.retool.com](https://customcomponents.retool.com/) and click **Submit Component**. This is where you provide your cover image, description, and tags that appear on your gallery card.
-
-Your component will not be reviewed until both steps are complete. Once submitted, our team reviews it and you will receive an email with the decision.
-
----
-
-## Resources
-
-- [Retool Custom Component Library Docs](https://docs.retool.com/apps/guides/custom/custom-component-libraries)
-- [Retool Community Forum](https://community.retool.com)
-- [Community Gallery](https://customcomponents.retool.com/)
-- [Gallery Contributing Guide](https://github.com/tryretool/custom-component-gallery/blob/main/CONTRIBUTING.md)

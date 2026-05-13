@@ -38,7 +38,7 @@
     "eslint-plugin-react": "^7.34.1",
     "postcss-modules": "^6.0.0",
     "prettier": "^3.0.3",
-    "vitest": "^4.0.17"
+    "vitest": "^1.6.0"
   },
   "retoolCustomComponentLibraryConfig": {
     "name": "Prism",

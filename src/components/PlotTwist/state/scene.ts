@@ -7,6 +7,7 @@ export function generateId(): string {
 export function addElement(scene: Scene, element: SceneElement): Scene {
   return {
     ...scene,
+    version: scene.version + 1,
     elements: [...scene.elements, element]
   }
 }
@@ -14,6 +15,7 @@ export function addElement(scene: Scene, element: SceneElement): Scene {
 export function updateElement(scene: Scene, id: string, changes: Partial<SceneElement>): Scene {
   return {
     ...scene,
+    version: scene.version + 1,
     elements: scene.elements.map(el => el.id === id ? { ...el, ...changes } as SceneElement : el)
   }
 }
@@ -21,6 +23,7 @@ export function updateElement(scene: Scene, id: string, changes: Partial<SceneEl
 export function deleteElement(scene: Scene, id: string): Scene {
   return {
     ...scene,
+    version: scene.version + 1,
     elements: scene.elements.filter(el => el.id !== id)
   }
 }
