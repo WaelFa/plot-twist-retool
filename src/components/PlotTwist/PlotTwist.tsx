@@ -201,7 +201,8 @@ export const PlotTwist: FC = () => {
           strokeWidth,
           opacity: 1,
           createdAt: Date.now(),
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
+          seed: Math.floor(Math.random() * 2 ** 31)
         }
         setHistory((prev) => pushState(prev, addElement(getCurrentScene(prev), el)))
       }
@@ -382,7 +383,8 @@ export const PlotTwist: FC = () => {
       strokeWidth,
       opacity: 1,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      seed: Math.floor(Math.random() * 2 ** 31)
     }
 
     if (activeTool === 'pen') {
@@ -481,6 +483,14 @@ export const PlotTwist: FC = () => {
       const dataUrl = canvasRef.current.toDataURL('image/png')
       setExportDataUrl(dataUrl)
       exportImageEvent()
+      
+      // Auto-trigger the download directly in the browser
+      const link = document.createElement('a')
+      link.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`
+      link.href = dataUrl
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 
@@ -647,11 +657,6 @@ export const PlotTwist: FC = () => {
         </div>
       </div>
       <div className={styles.canvasContainer} ref={containerRef}>
-        {scene.elements.length === 0 && !textInputState && (
-          <div className={styles.emptyState}>
-            Select a session or start drawing
-          </div>
-        )}
         <canvas
           className={styles.canvas}
           ref={canvasRef}
@@ -659,6 +664,11 @@ export const PlotTwist: FC = () => {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
         />
+        {scene.elements.length === 0 && !textInputState && (
+          <div className={styles.emptyState} style={{ zIndex: 10 }}>
+            Select a session or start drawing
+          </div>
+        )}
         {textInputState && (
           <textarea
             ref={textAreaRef}

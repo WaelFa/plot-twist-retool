@@ -64,7 +64,8 @@ export function renderScene(
       stroke: element.strokeColor,
       strokeWidth: element.strokeWidth,
       fill: element.fillColor !== 'transparent' ? element.fillColor : undefined,
-      fillStyle: 'hachure'
+      fillStyle: 'hachure',
+      seed: element.seed || 1
     }
 
     if (element.type === 'pen') {

@@ -15,6 +15,7 @@ export interface BaseElement {
   createdBy?: string
   createdAt: number
   updatedAt: number
+  seed?: number
 }
 
 export interface PenElement extends BaseElement {
