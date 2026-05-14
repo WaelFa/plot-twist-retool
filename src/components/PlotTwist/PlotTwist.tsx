@@ -19,9 +19,13 @@ import {
 } from './constants'
 import { generateId, addElement, updateElement } from './state/scene'
 import { createHistory, pushState, undo, redo, getCurrentScene, HistoryState } from './state/history'
+import { screenToWorld } from './state/viewport'
+import { getBoundingBox } from './canvas/geometry'
 import { hitTest } from './canvas/hitTest'
 import {
   CursorIcon,
+  PanIcon,
+  FocusIcon,
   PenIcon,
   RectIcon,
   EllipseIcon,
@@ -68,13 +72,9 @@ export const PlotTwist: FC = () => {
   const [strokeWidth, setStrokeWidth] = useState(2)
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentElementId, setCurrentElementId] = useState<string | null>(null)
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(
-    null
-  )
-  const [lastPointer, setLastPointer] = useState<{
-    x: number
-    y: number
-  } | null>(null)
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const [lastPointer, setLastPointer] = useState<{ x: number, y: number } | null>(null)
+  const [isSpacePan, setIsSpacePan] = useState(false)
 
   const [selectedElement, setSelectedElement] = Retool.useStateObject({
     name: 'selectedElement'
@@ -254,8 +254,53 @@ export const PlotTwist: FC = () => {
 
     resizeObserver.observe(document.body)
 
+    const container = containerRef.current
+    let handleWheel: ((e: WheelEvent) => void) | null = null
+
+    if (container) {
+      handleWheel = (e: WheelEvent) => {
+        e.preventDefault()
+        const rect = container.getBoundingClientRect()
+        const screenX = e.clientX - rect.left
+        const screenY = e.clientY - rect.top
+
+        setHistory((prev) => {
+          const current = getCurrentScene(prev)
+          const newStack = [...prev.stack]
+          let newZoom = current.zoom
+          let newViewportX = current.viewportX
+          let newViewportY = current.viewportY
+
+          if (e.ctrlKey || e.metaKey) {
+            // Pinch / Zoom
+            const zoomStep = -e.deltaY * 0.01
+            newZoom = Math.min(Math.max(0.1, current.zoom + zoomStep), 10)
+            const worldBefore = screenToWorld(screenX, screenY, current)
+            newViewportX = screenX - worldBefore.x * newZoom
+            newViewportY = screenY - worldBefore.y * newZoom
+          } else {
+            // Pan
+            newViewportX -= e.deltaX
+            newViewportY -= e.deltaY
+          }
+
+          newStack[prev.index] = {
+            ...current,
+            zoom: newZoom,
+            viewportX: newViewportX,
+            viewportY: newViewportY
+          }
+          return { ...prev, stack: newStack }
+        })
+      }
+      container.addEventListener('wheel', handleWheel, { passive: false })
+    }
+
     return () => {
       resizeObserver.disconnect()
+      if (container && handleWheel) {
+        container.removeEventListener('wheel', handleWheel)
+      }
     }
   }, []) // Empty dependency array because we manually trigger render when scene changes
 
@@ -287,6 +332,11 @@ export const PlotTwist: FC = () => {
         e.target instanceof HTMLTextAreaElement
       )
         return
+      if (e.code === 'Space') {
+        setIsSpacePan(true)
+        e.preventDefault()
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         if (e.shiftKey) {
           setHistory(redo)
@@ -331,8 +381,19 @@ export const PlotTwist: FC = () => {
         setSelectedElement(null)
       }
     }
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePan(false)
+      }
+    }
+    
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
   }, [selectedElementId])
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -342,8 +403,17 @@ export const PlotTwist: FC = () => {
     // Always capture pointer so we track outside canvas
     e.currentTarget.setPointerCapture(e.pointerId)
 
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const screenX = e.clientX - rect.left
+    const screenY = e.clientY - rect.top
+    
+    // Check if we should pan
+    if (activeTool === 'pan' || isSpacePan || e.button === 1) {
+      setIsDrawing(true)
+      setLastPointer({ x: screenX, y: screenY })
+      return
+    }
+
+    const { x, y } = screenToWorld(screenX, screenY, scene)
 
     if (activeTool === 'select') {
       const hit = hitTest(scene.elements, x, y)
@@ -413,12 +483,33 @@ export const PlotTwist: FC = () => {
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDrawing || !currentElementId) return
+    if (!isDrawing) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
 
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const screenX = e.clientX - rect.left
+    const screenY = e.clientY - rect.top
+    
+    if ((activeTool === 'pan' || isSpacePan || e.buttons === 4) && lastPointer) {
+      const dx = screenX - lastPointer.x
+      const dy = screenY - lastPointer.y
+      setLastPointer({ x: screenX, y: screenY })
+      
+      setHistory(prev => {
+        const newStack = [...prev.stack]
+        newStack[prev.index] = {
+          ...newStack[prev.index],
+          viewportX: newStack[prev.index].viewportX + dx,
+          viewportY: newStack[prev.index].viewportY + dy
+        }
+        return { ...prev, stack: newStack }
+      })
+      return
+    }
+
+    if (!currentElementId) return
+    
+    const { x, y } = screenToWorld(screenX, screenY, scene)
 
     if (activeTool === 'select' && currentElementId && lastPointer) {
       const dx = x - lastPointer.x
@@ -494,8 +585,57 @@ export const PlotTwist: FC = () => {
     }
   }
 
+  const handleResetView = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const padding = 50
+
+    setHistory((prev) => {
+      const current = getCurrentScene(prev)
+      const newStack = [...prev.stack]
+
+      if (current.elements.length === 0) {
+        newStack[prev.index] = { ...current, viewportX: 0, viewportY: 0, zoom: 1 }
+        return { ...prev, stack: newStack }
+      }
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      current.elements.forEach(el => {
+        const box = getBoundingBox(el)
+        if (box.minX < minX) minX = box.minX
+        if (box.minY < minY) minY = box.minY
+        if (box.maxX > maxX) maxX = box.maxX
+        if (box.maxY > maxY) maxY = box.maxY
+      })
+
+      const width = maxX - minX || 1
+      const height = maxY - minY || 1
+      
+      const zoomX = (rect.width - padding * 2) / width
+      const zoomY = (rect.height - padding * 2) / height
+      let newZoom = Math.min(zoomX, zoomY)
+      newZoom = Math.min(Math.max(0.1, newZoom), 2) // clamp zoom
+
+      const worldCenterX = minX + width / 2
+      const worldCenterY = minY + height / 2
+
+      const newViewportX = rect.width / 2 - worldCenterX * newZoom
+      const newViewportY = rect.height / 2 - worldCenterY * newZoom
+
+      newStack[prev.index] = {
+        ...current,
+        viewportX: newViewportX,
+        viewportY: newViewportY,
+        zoom: newZoom
+      }
+
+      return { ...prev, stack: newStack }
+    })
+  }
+
   return (
-    <div className={styles.root}>
+    <div className={styles.root} ref={containerRef}>
       <div className={styles.topToolbar}>
         <div className={styles.toolbarGroup}>
           <button
@@ -504,6 +644,13 @@ export const PlotTwist: FC = () => {
             data-tooltip="Select (V)"
           >
             <CursorIcon />
+          </button>
+          <button
+            className={`${styles.toolBtn} ${activeTool === 'pan' ? styles.toolBtnActive : ''}`}
+            onClick={() => setActiveTool('pan')}
+            data-tooltip="Pan (Space)"
+          >
+            <PanIcon />
           </button>
           <button
             className={`${styles.toolBtn} ${activeTool === 'pen' ? styles.toolBtnActive : ''}`}
@@ -560,6 +707,13 @@ export const PlotTwist: FC = () => {
         </div>
         <div className={styles.divider} />
         <div className={styles.toolbarGroup}>
+          <button
+            className={styles.actionBtn}
+            onClick={handleResetView}
+            data-tooltip="Focus / Reset View"
+          >
+            <FocusIcon />
+          </button>
           <button
             className={styles.actionBtn}
             onClick={() => setHistory(prev => pushState(prev, { ...getCurrentScene(prev), elements: [] }))}
@@ -674,8 +828,10 @@ export const PlotTwist: FC = () => {
             ref={textAreaRef}
             style={{
               position: 'absolute',
-              left: textInputState.x,
-              top: textInputState.y,
+              left: 0,
+              top: 0,
+              transform: `translate(${textInputState.x * scene.zoom + scene.viewportX}px, ${textInputState.y * scene.zoom + scene.viewportY}px) scale(${scene.zoom})`,
+              transformOrigin: 'top left',
               fontSize: `${strokeWidth <= 2 ? 16 : strokeWidth <= 4 ? 24 : 36}px`,
               fontFamily: "'Caveat', cursive",
               color: strokeColor,

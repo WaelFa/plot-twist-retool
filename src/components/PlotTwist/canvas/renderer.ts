@@ -27,27 +27,42 @@ export function renderScene(
   showGrid: boolean = true,
   selectedElementId: string | null = null
 ) {
+  ctx.save()
   // Clear the canvas
   ctx.clearRect(0, 0, width, height)
 
-  // Draw background
+  // Draw background (always covers screen)
   ctx.fillStyle = backgroundColor
   ctx.fillRect(0, 0, width, height)
+
+  // Apply Camera Transform
+  ctx.translate(scene.viewportX, scene.viewportY)
+  ctx.scale(scene.zoom, scene.zoom)
 
   // Draw grid
   if (showGrid) {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'
-    ctx.lineWidth = 1
+    ctx.lineWidth = 1 / scene.zoom // keep grid line crisp regardless of zoom
     ctx.beginPath()
 
-    for (let x = 0; x <= width; x += GRID_SIZE) {
-      ctx.moveTo(x, 0)
-      ctx.lineTo(x, height)
+    // Calculate visible world bounds to draw grid efficiently
+    const startX = -scene.viewportX / scene.zoom
+    const startY = -scene.viewportY / scene.zoom
+    const endX = startX + width / scene.zoom
+    const endY = startY + height / scene.zoom
+    
+    // Snap grid start to grid size
+    const gridStartX = Math.floor(startX / GRID_SIZE) * GRID_SIZE
+    const gridStartY = Math.floor(startY / GRID_SIZE) * GRID_SIZE
+
+    for (let x = gridStartX; x <= endX; x += GRID_SIZE) {
+      ctx.moveTo(x, startY)
+      ctx.lineTo(x, endY)
     }
 
-    for (let y = 0; y <= height; y += GRID_SIZE) {
-      ctx.moveTo(0, y)
-      ctx.lineTo(width, y)
+    for (let y = gridStartY; y <= endY; y += GRID_SIZE) {
+      ctx.moveTo(startX, y)
+      ctx.lineTo(endX, y)
     }
 
     ctx.stroke()
@@ -125,4 +140,7 @@ export function renderScene(
       ctx.restore()
     }
   }
+  
+  // Restore top-level camera transform
+  ctx.restore()
 }

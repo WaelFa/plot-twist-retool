@@ -1,4 +1,4 @@
-export type ToolType = 'pen' | 'rectangle' | 'ellipse' | 'line' | 'text' | 'select'
+export type ToolType = 'pen' | 'rectangle' | 'ellipse' | 'line' | 'text' | 'select' | 'pan'
 
 export type Point = [number, number]
 export type PressurePoint = [number, number, number]
